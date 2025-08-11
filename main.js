@@ -18,6 +18,7 @@ class GlobeViewer {
         this.db = null; // IndexedDB connection
         this.loadingOverlay = null; // Loading overlay element
         this.dragModal = null; // Drag modal element
+        this.currentUploadEntry = null; // Current uploaded texture for saving settings
         
         this.init();
         this.setupDragAndDrop();
@@ -479,6 +480,13 @@ class GlobeViewer {
             e.stopPropagation(); // Prevent event bubbling to foldout header
             this.clearUploadHistory();
         });
+
+        // Save current settings button
+        const saveSettingsBtn = document.getElementById('save-current-settings');
+        saveSettingsBtn.addEventListener('click', () => {
+            this.saveCurrentSettings();
+        });
+
     }
 
     toggleAutoRotate() {
@@ -548,7 +556,7 @@ class GlobeViewer {
         img.src = url;
     }
 
-    loadTextureFromDataUrl(dataUrl, lightingSettings = null, fileName = null) {
+    loadTextureFromDataUrl(dataUrl, savedSettings = null, fileName = null, uploadEntry = null) {
         // Show loading with filename if available
         const loadingText = fileName ? `Loading ${fileName}...` : 'Loading cached texture...';
         this.showLoading(loadingText);
@@ -576,18 +584,21 @@ class GlobeViewer {
                 this.globe.material.needsUpdate = true;
                 this.currentTexture = texture;
                 
-                console.log('Before lighting restore - current settings:', {
+                console.log('Before restore - current settings:', {
                     ambient: this.ambientBrightness,
                     directional: this.directionalBrightness,
                     rotation: this.lightRotation
                 });
                 
-                // Restore saved lighting settings if available
-                if (lightingSettings) {
-                    this.restoreLightingSettings(lightingSettings);
-                    console.log('After lighting restore - applied settings:', lightingSettings);
+                // Set current upload entry so save button works
+                this.currentUploadEntry = uploadEntry;
+                
+                // Restore saved settings if available
+                if (savedSettings) {
+                    this.restoreSavedSettings(savedSettings);
+                    console.log('After restore - applied settings:', savedSettings);
                 } else {
-                    console.log('No lighting settings to restore, using current values');
+                    console.log('No saved settings to restore, using current values');
                 }
                 
                 console.log('Cached texture material details:', {
@@ -598,7 +609,7 @@ class GlobeViewer {
                 });
                 
                 // Restart auto-rotation when new texture is loaded
-                if (!this.autoRotate) {
+                if (this.autoRotate) {
                     this.toggleAutoRotate();
                 }
                 
@@ -631,20 +642,19 @@ class GlobeViewer {
         ctx.drawImage(img, 0, 0, 100, 50);
         const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
         
-        // Create upload entry with current lighting settings
+        // Create upload entry without settings (user will save manually if desired)
         const uploadEntry = {
             id: Date.now() + Math.random(), // Unique ID
             name: file.name.split('.')[0], // Filename without extension
             thumbnailUrl: thumbnailUrl,
             originalDataUrl: img.src, // Keep full quality for IndexedDB
             timestamp: new Date(),
-            // Save current lighting settings
-            lightingSettings: {
-                ambientBrightness: this.ambientBrightness,
-                directionalBrightness: this.directionalBrightness,
-                lightRotation: this.lightRotation
-            }
+            // No automatic settings saved - user must use "Save Current View" button
+            savedSettings: null
         };
+        
+        // Store reference to current upload for potential saving
+        this.currentUploadEntry = uploadEntry;
         
         // Add to history and save to IndexedDB
         this.saveTextureToIndexedDB(uploadEntry);
@@ -677,7 +687,7 @@ class GlobeViewer {
             `;
             
             item.addEventListener('click', () => {
-                this.loadTextureFromDataUrl(upload.originalDataUrl, upload.lightingSettings, upload.name);
+                this.loadTextureFromDataUrl(upload.originalDataUrl, upload.savedSettings, upload.name, upload);
             });
             
             userTexturesGrid.appendChild(item);
@@ -721,8 +731,9 @@ class GlobeViewer {
         const transaction = this.db.transaction(['textures'], 'readwrite');
         const store = transaction.objectStore('textures');
         
-        store.add(uploadEntry).onsuccess = () => {
-            console.log('Texture saved to IndexedDB');
+        // Use put() instead of add() to allow updates to existing records
+        store.put(uploadEntry).onsuccess = () => {
+            console.log('Texture saved/updated in IndexedDB');
             this.loadUploadHistory(); // Refresh the UI
         };
         
@@ -781,37 +792,106 @@ class GlobeViewer {
         };
     }
 
-    restoreLightingSettings(settings) {
-        // Update internal values
-        this.ambientBrightness = settings.ambientBrightness;
-        this.directionalBrightness = settings.directionalBrightness;
-        this.lightRotation = settings.lightRotation;
-        
-        // Update UI sliders to match
-        const ambientSlider = document.getElementById('ambient-brightness-slider');
-        const ambientValue = document.getElementById('ambient-brightness-value');
-        const directionalSlider = document.getElementById('directional-brightness-slider');
-        const directionalValue = document.getElementById('directional-brightness-value');
-        const lightRotationSlider = document.getElementById('light-rotation-slider');
-        const lightRotationValue = document.getElementById('light-rotation-value');
-        
-        if (ambientSlider) {
-            ambientSlider.value = this.ambientBrightness;
-            ambientValue.textContent = this.ambientBrightness.toFixed(1);
+    saveCurrentSettings() {
+        if (!this.currentUploadEntry) {
+            alert('No uploaded texture to save settings for. Please upload an image first.');
+            return;
         }
+
+        // Capture current camera position and rotation
+        const cameraSettings = {
+            position: {
+                x: this.camera.position.x,
+                y: this.camera.position.y,
+                z: this.camera.position.z
+            },
+            target: {
+                x: this.controls.target.x,
+                y: this.controls.target.y,
+                z: this.controls.target.z
+            }
+        };
+
+        // Create complete settings object
+        const savedSettings = {
+            lighting: {
+                ambientBrightness: this.ambientBrightness,
+                directionalBrightness: this.directionalBrightness,
+                lightRotation: this.lightRotation
+            },
+            camera: cameraSettings
+        };
+
+        // Update the current upload entry
+        this.currentUploadEntry.savedSettings = savedSettings;
         
-        if (directionalSlider) {
-            directionalSlider.value = this.directionalBrightness;
-            directionalValue.textContent = this.directionalBrightness.toFixed(1);
+        // Save to IndexedDB
+        this.saveTextureToIndexedDB(this.currentUploadEntry);
+        
+        // Show confirmation
+        const button = document.getElementById('save-current-settings');
+        const originalText = button.textContent;
+        button.textContent = '✓ Saved!';
+        button.style.background = '#28a745';
+        
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.background = '#28a745';
+        }, 2000);
+    }
+
+    restoreSavedSettings(savedSettings) {
+        if (!savedSettings) return;
+
+        // Restore lighting settings
+        if (savedSettings.lighting) {
+            this.ambientBrightness = savedSettings.lighting.ambientBrightness;
+            this.directionalBrightness = savedSettings.lighting.directionalBrightness;
+            this.lightRotation = savedSettings.lighting.lightRotation;
+
+            // Update UI sliders to match
+            const ambientSlider = document.getElementById('ambient-brightness-slider');
+            const ambientValue = document.getElementById('ambient-brightness-value');
+            const directionalSlider = document.getElementById('directional-brightness-slider');
+            const directionalValue = document.getElementById('directional-brightness-value');
+            const lightRotationSlider = document.getElementById('light-rotation-slider');
+            const lightRotationValue = document.getElementById('light-rotation-value');
+            
+            if (ambientSlider) {
+                ambientSlider.value = this.ambientBrightness;
+                ambientValue.textContent = this.ambientBrightness.toFixed(1);
+            }
+            
+            if (directionalSlider) {
+                directionalSlider.value = this.directionalBrightness;
+                directionalValue.textContent = this.directionalBrightness.toFixed(1);
+            }
+            
+            if (lightRotationSlider) {
+                lightRotationSlider.value = this.lightRotation;
+                lightRotationValue.textContent = this.lightRotation + '°';
+            }
+            
+            // Apply the lighting changes
+            this.updateLighting();
         }
-        
-        if (lightRotationSlider) {
-            lightRotationSlider.value = this.lightRotation;
-            lightRotationValue.textContent = this.lightRotation + '°';
+
+        // Restore camera position
+        if (savedSettings.camera) {
+            this.camera.position.set(
+                savedSettings.camera.position.x,
+                savedSettings.camera.position.y,
+                savedSettings.camera.position.z
+            );
+            
+            this.controls.target.set(
+                savedSettings.camera.target.x,
+                savedSettings.camera.target.y,
+                savedSettings.camera.target.z
+            );
+            
+            this.controls.update();
         }
-        
-        // Apply the lighting changes
-        this.updateLighting();
     }
 
     onWindowResize() {
