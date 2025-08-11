@@ -1,0 +1,408 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    font-family: 'Arial', sans-serif;
+    background: #111;
+    color: #fff;
+    overflow: hidden;
+}
+
+#container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+}
+
+#canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#instructions {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 100;
+}
+
+#instructions h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+#instructions p {
+    font-size: 1.2rem;
+    opacity: 0.8;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+#error-message {
+    margin-top: 1rem;
+    padding: 10px 20px;
+    background: rgba(220, 53, 69, 0.9);
+    border-radius: 4px;
+    font-size: 1rem;
+    pointer-events: auto;
+}
+
+.hidden {
+    display: none;
+}
+
+.drag-over {
+    background: rgba(70, 130, 180, 0.1);
+}
+
+.drag-over #instructions p {
+    color: #87CEEB;
+}
+
+/* Controls Panel */
+#controls-panel {
+    position: fixed;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #333;
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    transition: left 0.3s ease;
+    z-index: 200;
+    width: 220px;
+    max-width: 220px;
+}
+
+#controls-panel.collapsed {
+    left: -220px;
+}
+
+#controls-toggle {
+    position: absolute;
+    right: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 60px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #333;
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #fff;
+    font-size: 14px;
+    user-select: none;
+}
+
+#controls-toggle:hover {
+    background: rgba(0, 0, 0, 0.9);
+}
+
+#toggle-arrow {
+    transition: transform 0.3s ease;
+}
+
+#controls-panel:not(.collapsed) #toggle-arrow {
+    transform: rotate(180deg);
+}
+
+#controls-content {
+    padding: 20px;
+    color: #fff;
+}
+
+.control-group {
+    margin-bottom: 15px;
+}
+
+.control-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 14px;
+    color: #ccc;
+}
+
+.control-group input[type="range"] {
+    width: 100%;
+    margin-bottom: 5px;
+    accent-color: #4169E1;
+}
+
+#brightness-value {
+    font-size: 12px;
+    color: #999;
+    float: right;
+}
+
+/* Button Styling */
+.toggle-btn {
+    width: 100%;
+    padding: 8px 12px;
+    background: #4169E1;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s ease;
+}
+
+.toggle-btn:hover {
+    background: #315CBF;
+}
+
+.toggle-btn.active {
+    background: #DC3545;
+}
+
+.toggle-btn.active:hover {
+    background: #C82333;
+}
+
+/* Foldout Section */
+.foldout-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 5px 0;
+    border-bottom: 1px solid #333;
+    margin-bottom: 10px;
+}
+
+.foldout-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.foldout-arrow {
+    font-size: 12px;
+    transition: transform 0.3s ease;
+}
+
+.foldout-content.collapsed .foldout-arrow {
+    transform: rotate(-90deg);
+}
+
+.foldout-content {
+    max-height: 200px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.foldout-content.collapsed {
+    max-height: 0;
+    margin-bottom: 0;
+}
+
+/* Texture Grid */
+.texture-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 8px 0;
+}
+
+.texture-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+    min-width: 0; /* Allow shrinking */
+}
+
+.texture-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.texture-preview {
+    width: 50px;
+    height: 25px;
+    background-size: cover;
+    background-position: center;
+    border-radius: 3px;
+    margin-bottom: 4px;
+    border: 1px solid #333;
+    flex-shrink: 0;
+}
+
+.texture-item span {
+    font-size: 10px;
+    color: #ccc;
+    text-align: center;
+    word-break: break-word;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.2;
+    max-width: 60px;
+}
+
+/* Texture Sections */
+.texture-section {
+    margin-bottom: 15px;
+}
+
+.texture-section h4 {
+    color: #fff;
+    font-size: 13px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #444;
+    padding-bottom: 4px;
+}
+
+.clear-btn {
+    background: #DC3545;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.clear-btn:hover {
+    background: #C82333;
+}
+
+/* User texture items have a subtle difference */
+#user-textures .texture-item {
+    position: relative;
+}
+
+#user-textures .texture-item::after {
+    content: "👤";
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+/* Loading Animation */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 1; /* Start visible for startup loading */
+    pointer-events: all;
+    transition: opacity 0.5s ease;
+}
+
+#loading-overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+#loading-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #333;
+    border-top: 4px solid #4169E1;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+.loading-text {
+    color: #fff;
+    font-size: 18px;
+    text-align: center;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Drag Over Modal */
+#drag-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(70, 130, 180, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    backdrop-filter: blur(2px);
+}
+
+#drag-modal.visible {
+    opacity: 1;
+    pointer-events: none; /* Keep pointer-events: none to avoid interfering with drag events */
+}
+
+.drag-modal-content {
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px dashed #87CEEB;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    color: #87CEEB;
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* Sphere startup animation */
+.sphere-startup {
+    transform: scale(0);
+    transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sphere-startup.animate-in {
+    transform: scale(1);
+}
