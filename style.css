@@ -78,14 +78,14 @@ body, html {
     border: 1px solid #333;
     border-left: none;
     border-radius: 0 8px 8px 0;
-    transition: left 0.3s ease;
+    transition: transform 0.3s ease;
     z-index: 200;
     width: 220px;
     max-width: 220px;
 }
 
 #controls-panel.collapsed {
-    left: -220px;
+    transform: translateY(-50%) translateX(-220px);
 }
 
 #controls-toggle {
@@ -240,6 +240,17 @@ body, html {
     margin-bottom: 4px;
     border: 1px solid #333;
     flex-shrink: 0;
+}
+
+.loading-placeholder {
+    background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+    background-size: 200% 100%;
+    animation: loading-shimmer 2s infinite;
+}
+
+@keyframes loading-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 .texture-item span {
